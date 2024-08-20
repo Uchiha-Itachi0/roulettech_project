@@ -1,9 +1,11 @@
+import React, { useState } from 'react';
 import SignIn from "../components/Authentication/SignIn";
-import { GoogleAuthProvider, signInWithPopup, signInWithEmailAndPassword, sendPasswordResetEmail } from "firebase/auth";
-import { auth } from "../utils/firebase";
-import React, { useState } from "react";
 import Snackbar from "../components/SnackBar";
-import {useNavigate} from "react-router-dom";
+import axios from 'axios';
+import { useNavigate } from "react-router-dom";
+import handleResponseError from "../utils/handleErrorResponse";
+import { GoogleAuthProvider, signInWithPopup } from "firebase/auth";
+import { auth } from "../utils/firebase";
 
 const SignInPage: React.FC = () => {
     const navigate = useNavigate();
@@ -20,29 +22,26 @@ const SignInPage: React.FC = () => {
     const handleSignIn = async (e: React.FormEvent) => {
         e.preventDefault();
         const { email, password } = formData;
+        if(email.length === 0 || password.length === 0){
+            setSnackbar({ open: true, message: 'Field must not be empty' });
+            return;
+        }
 
         try {
-            await signInWithEmailAndPassword(auth, email, password);
+            const response = await axios.post('http://localhost:8000/api/auth/login/', {
+                email,  // Use email key here
+                password,
+            });
+            localStorage.setItem('token', response.data.token);
             setSnackbar({ open: true, message: 'User signed in successfully' });
             navigate('/post-login');
         } catch (error: any) {
-            if(error.message.split('Firebase: ')[1].includes('missing-password')){
-                setSnackbar({ open: true, message: 'Please enter the password' });
-            }
-            else if(error.message.split('Firebase: ')[1].includes('invalid-email')){
-                setSnackbar({ open: true, message: 'Invalid email' });
-            }
-            else if(error.message.split('Firebase: ')[1].includes('invalid-credential')){
-                setSnackbar({ open: true, message: 'Invalid credentials' });
-            }
-            else{
-                setSnackbar({ open: true, message: `${error.message}` });
-                console.error('Error signing in:', error);
-            }
-
+            setSnackbar({ open: true, message: handleResponseError(error) });
+            console.error('Error signing in:', error);
         }
     };
 
+    const handleForgotPassword = () => {}
     const handleSignInWithGoogle = async () => {
         try {
             const provider = new GoogleAuthProvider();
@@ -54,35 +53,15 @@ const SignInPage: React.FC = () => {
             console.error('Error signing in with Google:', error);
         }
     };
-
-    const handleForgotPassword = async () => {
-        const { email, password } = formData;
-
-        if (!email) {
-            setSnackbar({ open: true, message: 'Please enter your email address' });
-            return;
-        }
-
-        try {
-            await signInWithEmailAndPassword(auth, email, password);
-            await sendPasswordResetEmail(auth, email);
-            setSnackbar({ open: true, message: 'Password reset email sent' });
-        } catch (error: any) {
-            setSnackbar({ open: true, message: `${error.message}` });
-            console.error('Error sending password reset email:', error);
-        }
-    };
-
     return (
         <>
             {snackbar.open && <Snackbar message={snackbar.message} onClose={() => setSnackbar({ open: false, message: '' })} />}
             <SignIn
                 onSignIn={handleSignIn}
-                onSignInWithGoogle={handleSignInWithGoogle}
-                onForgotPassword={handleForgotPassword}
                 formData={formData}
                 setFormData={setFormData}
-            />
+             onForgotPassword={handleForgotPassword}
+                onSignInWithGoogle={handleSignInWithGoogle}/>
         </>
     );
 };
